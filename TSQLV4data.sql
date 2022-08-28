@@ -260,3 +260,70 @@ WHERE O2.custid = O1.custid)
 	AS NUMERIC(5,2)) AS pct
 	FROM Sales.OrderValues AS O1
 	ORDER BY custid, orderid;
+
+
+--use EXISTS predicate to return customers from Spain if they show up in the Orders table
+SELECT custid, companyname
+FROM Sales.Customers AS C
+WHERE country = N'Spain'
+	AND EXISTS
+	(SELECT * FROM Sales.Orders AS O
+	WHERE O.custid = C.custid);
+
+
+--for each order, return info about the current order and the previous orderid. "Max value that is smaller than the current value"
+SELECT orderid, orderdate, empid, custid,
+	(SELECT MAX(O2.orderid)
+	FROM Sales.Orders AS O2
+	WHERE O2.orderid < O1.orderid) AS previousorderid
+FROM Sales.Orders AS O1;
+--because there's no order before the 1st order, subquery returned a NULL. 
+--could also have worked by building it as "min value that is greater than the current value."
+--could also use window functions LAG or LEAD
+
+
+--create running total of total orders each year. use a correlated subquery against a 2nd instance of the view Sales.OrderTotalsByYear.
+--subquery should filter all rows in O2 where the order year is <= to current year in O1, and sum quantities from O2
+SELECT orderyear, qty,
+	(SELECT SUM(O2.qty)
+	FROM Sales.OrderTotalsByYear AS O2
+	WHERE O2.orderyear <= O1.orderyear) AS runqty
+FROM Sales.OrderTotalsByYear AS O1
+ORDER BY orderyear;
+--could also use window functions to calculate
+
+
+--returns all orders placed by the customer(s) who placed the highest number of orders
+SELECT custid, orderid, orderdate, empid
+FROM Sales.Orders
+WHERE custid IN 
+				(SELECT TOP (1) WITH TIES O.custid
+				FROM Sales.Orders AS O
+				GROUP BY O.custid
+				ORDER BY COUNT(*) DESC);
+
+--return employees who did not place an order on or after 5/1/2016
+SELECT empid,FirstName,lastname
+FROM HR.Employees as E
+WHERE empid NOT IN
+			(SELECT empid 
+			FROM Sales.Orders
+			WHERE orderdate >= '20160501'
+			AND orderdate IS NOT NULL);
+
+
+--return custid, company for customers who ordered product #12
+SELECT custid, companyname
+FROM Sales.Customers AS C
+WHERE EXISTS 
+	(SELECT *
+	FROM Sales.Orders AS O
+	WHERE O.custid = C.custid
+		AND EXISTS 
+			(SELECT * 
+			FROM Sales.OrderDetails AS OD
+			WHERE OD.orderid = O.orderid
+				AND OD.ProductID = 12));
+
+
+
