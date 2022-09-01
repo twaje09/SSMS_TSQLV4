@@ -326,4 +326,28 @@ WHERE EXISTS
 				AND OD.ProductID = 12));
 
 
+--check growth of distinct customers by year.
+--use CTE. CTEs allow multiple instances of the same CTE. Create instances Cur and Prv below.
+--calculate "growth" as the difference of distinct customers in the current year and the previous year.
+WITH YearlyCount AS
+(
+	SELECT YEAR(orderdate) AS orderyear, COUNT(DISTINCT custid) AS numcusts
+	FROM Sales.Orders
+	GROUP BY YEAR(orderdate)
+)
+SELECT Cur.orderyear, Cur.numcusts AS curnumcusts, Prv.numcusts AS prvnumcusts,
+		Cur.numcusts - Prv.numcusts AS growth
+		FROM YearlyCount AS Cur
+			LEFT OUTER JOIN YearlyCount AS Prv
+			ON Cur.orderyear = Prv.orderyear + 1;
+
+
+--use CROSS APPLY to return the 3 most recent orders from each customers (TOP (3)). Customers with no order are excluded.
+SELECT C.custid, A.orderid, A.orderdate
+FROM Sales.Customers AS C
+	CROSS APPLY
+	(SELECT TOP (3) orderid, empid, orderdate, requireddate
+	FROM Sales.Orders AS O
+	WHERE O.custid = C.custid
+	ORDER BY orderdate DESC, orderid DESC) AS A;
 
