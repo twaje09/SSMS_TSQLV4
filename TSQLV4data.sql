@@ -1,7 +1,7 @@
-/*Data exploration and querying practice 
-		using TSQLV4 database from the book T-SQL Fundamentals by Ben-Gan Itzik */
+/*Data exploration of the TSQLV4 database 
+	from the book T-SQL Fundamentals by Ben-Gan Itzik */
 
-/* Tables (not complete list) include:
+/* Tables include:
 dbo.Orders
 Hr.Employees
 Production.Categories
@@ -181,6 +181,7 @@ ORDER BY orderdate;
 --NULLs will show for ID columns on dates no order was made
 -----------------------------------------------------------------------
 
+
 --multiple join query, including an outer join without losing the outer rows
 --inner join between Orders and OrderDetails, then join results with Customers using right Outer join
 SELECT C.custid, O.orderid, OD.productid, OD.qty
@@ -350,4 +351,63 @@ FROM Sales.Customers AS C
 	FROM Sales.Orders AS O
 	WHERE O.custid = C.custid
 	ORDER BY orderdate DESC, orderid DESC) AS A;
+
+
+--returns distinct locations that are employee locations but not customer locations, using EXCEPT
+SELECT country, region, city
+FROM HR>Employees
+EXCEPT
+SELECT country, region, city
+FROM Sales.Customers
+--returned Redmond and Tacoma
+
+--return customer and employee pairs that had order activity in both January 2016 and February 2016
+SELECT custid, empid
+FROM Sales.Orders
+WHERE orderdate >= '20160101' AND orderdate < '20160201'
+INTERSECT
+SELECT custid, empid
+FROM Sales.Orders
+WHERE orderdate >= '20160201' AND orderdate < '20160301'
+
+
+--return first and last value for each custid window, ordered by orderdate, orderid
+SELECT custid, orderid, val,
+	FIRST_VALUE(val) OVER (PARTITION BY custid
+							ORDER BY orderdate, orderid
+							ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS firstval,
+	LAST_VALUE(val) OVER (PARTITION BY custid
+							ORDER BY orderdate, orderid
+							ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS lastval
+FROM Sales.OrderValues
+ORDER BY custid, orderdate, orderid;
+
+
+--for each custid, returns val, as well as previous val, and next val
+SELECT custid, orderid, val,
+		LAG(val) OVER (PARTITION BY custid ORDER BY orderdate, orderid) AS prevval,
+		LEAD(val) OVER (PARTITION BY custid ORDER BY orderdate, orderid) AS nextval
+FROM Sales.OrderValues
+ORDER BY custid, orderdate, orderid;
+
+
+
+------------------------------------------------------
+--return total quantity for each employeee (on rows) and customer (on columns).
+--GROUP BY empid, use custid as spreading element, and SUM the qty:
+SELECT empid,
+		SUM(CASE WHEN custid = 'A' THEN qty END) AS A,
+		SUM(CASE WHEN custid = 'B' THEN qty END) AS B,
+		SUM(CASE WHEN custid = 'C' THEN qty END) AS C,
+		SUM(CASE WHEN custid = 'D' THEN qty END) AS D
+FROM dbo.Orders
+GROUP BY empid;
+
+--same as previous query but using PIVOT operator. 
+SELECT empid, A, B, C, D
+FROM (SELECT empid, custid, qty
+		FROM dbo.Orders) AS D
+	PIVOT (SUM(qty) FOR custid IN (A, B, C, D)) AS P;
+
+------------------------------------------------------
 
